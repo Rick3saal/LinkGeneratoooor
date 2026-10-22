@@ -1,0 +1,47 @@
+{
+  "name": "el-3asool-scoop",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "El 3asool Scoop — GDS itinerary to airline metasearch deep links (mixed cabins included).",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "data:airports": "node scripts/build-airports.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "license": "MIT",
+  "keywords": [
+    "american-airlines",
+    "metasearch",
+    "deep-link",
+    "itinerary",
+    "sabre",
+    "gds",
+    "flights",
+    "mixed-cabin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rick3saal/LinkGeneratoooor.git"
+  }
+}
