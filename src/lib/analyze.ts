@@ -1,5 +1,5 @@
 import { buildAaLink, type BuiltLink } from './aaLink';
-import { segmentChecks } from './checks';
+import { passengerChecks, segmentChecks } from './checks';
 import { planSlices, type SlicePlan } from './slices';
 import type { AirportLookup, BuildOptions, Issue, IssueLevel, Segment } from './types';
 
@@ -35,7 +35,10 @@ export function analyze(
     thresholdHours: ctx.thresholdHours,
   });
   const link = buildAaLink({ items: plan.items, slices: plan.slices, options });
-  const checks = segmentChecks(segments, ctx.now ?? new Date());
+  const checks = [
+    ...segmentChecks(segments, ctx.now ?? new Date()),
+    ...passengerChecks(options.passengers),
+  ];
 
   const seen = new Set<string>();
   const issues: Issue[] = [];

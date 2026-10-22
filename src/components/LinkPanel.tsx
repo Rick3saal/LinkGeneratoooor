@@ -1,6 +1,6 @@
-import { ExternalLink, Settings2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ExternalLink, Settings2, ShieldCheck, TriangleAlert, Users } from 'lucide-react';
 import { useState } from 'react';
-import { AA_METASEARCH_BASE } from '../lib/aaLink';
+import { AA_METASEARCH_BASE, passengerCode } from '../lib/aaLink';
 import type { Analysis } from '../lib/analyze';
 import { cn } from '../lib/cn';
 import type { BuildOptions, PassengerCounts } from '../lib/types';
@@ -12,31 +12,56 @@ interface Props {
   onOptionsChange: (patch: Partial<BuildOptions>) => void;
 }
 
+/** The six passenger buckets AA's envelope carries, in the order it carries them. */
+const PAX_FIELDS: { key: keyof PassengerCounts; label: string; hint: string }[] = [
+  { key: 'adults', label: 'Adults', hint: '12 and over' },
+  { key: 'seniors', label: 'Seniors', hint: '65 and over' },
+  { key: 'children', label: 'Children', hint: '2–11' },
+  { key: 'youth', label: 'Youth', hint: '12–17' },
+  { key: 'infants', label: 'Infants', hint: 'In a seat — one per adult' },
+  { key: 'lap', label: 'Lap infants', hint: 'Under 2 on a lap' },
+];
+
 function Counter({
   label,
+  hint,
   value,
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: number;
   onChange: (next: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-md border border-line bg-panel-2 px-2 py-1">
-      <span className="text-[10.5px] text-muted">{label}</span>
-      <div className="flex items-center gap-1">
+    <div
+      title={hint}
+      className="flex items-center justify-between gap-1 rounded-md border border-line bg-panel-2 px-1.5 py-1"
+    >
+      <span className="truncate text-[10px] text-muted">{label}</span>
+      <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
+          aria-label={`Fewer ${label.toLowerCase()}`}
           onClick={() => onChange(Math.max(0, value - 1))}
-          className="grid h-4 w-4 place-items-center rounded border border-line-2 text-[10px] text-muted hover:bg-panel-3 hover:text-ink"
+          disabled={value === 0}
+          className="grid h-4 w-4 place-items-center rounded border border-line-2 text-[10px] text-muted transition-colors hover:bg-panel-3 hover:text-ink disabled:pointer-events-none disabled:opacity-30"
         >
           −
         </button>
-        <span className="w-4 text-center font-mono text-[11px] text-ink">{value}</span>
+        <span
+          className={cn(
+            'w-3.5 text-center font-mono text-[11px]',
+            value > 0 ? 'text-ink' : 'text-faint/60',
+          )}
+        >
+          {value}
+        </span>
         <button
           type="button"
+          aria-label={`More ${label.toLowerCase()}`}
           onClick={() => onChange(Math.min(9, value + 1))}
-          className="grid h-4 w-4 place-items-center rounded border border-line-2 text-[10px] text-muted hover:bg-panel-3 hover:text-ink"
+          className="grid h-4 w-4 place-items-center rounded border border-line-2 text-[10px] text-muted transition-colors hover:bg-panel-3 hover:text-ink"
         >
           +
         </button>
@@ -130,6 +155,34 @@ export function LinkPanel({ analysis, options, onOptionsChange }: Props) {
           </div>
         </div>
 
+        <div className="rounded-lg border border-line bg-panel-2/50 p-2">
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <Users className="h-3 w-3 text-faint" />
+            <span className="text-[9.5px] uppercase tracking-[0.14em] text-faint">
+              Passengers
+            </span>
+            <span className="ml-auto font-mono text-[9.5px] text-faint">
+              <span className={cn(totalPax > 9 && 'text-red-300')}>{totalPax}</span>/9 ·{' '}
+              <span className="text-muted">{passengerCode(options)}</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {PAX_FIELDS.map((field) => (
+              <Counter
+                key={field.key}
+                label={field.label}
+                hint={field.hint}
+                value={pax[field.key]}
+                onChange={(value) => setPax(field.key, value)}
+              />
+            ))}
+          </div>
+          <p className="mt-1.5 text-[9.5px] leading-snug text-faint">
+            Field 5 of the envelope — {passengerCode(options)}. aa.com caps one search at nine
+            travellers.
+          </p>
+        </div>
+
         <div className="flex items-center gap-1.5">
           <Button variant="primary" className="flex-1" onClick={open} disabled={!canBuild}>
             <ExternalLink className="h-3.5 w-3.5" /> Open on aa.com
@@ -139,25 +192,6 @@ export function LinkPanel({ analysis, options, onOptionsChange }: Props) {
 
         {showOptions && (
           <div className="space-y-2 rounded-lg border border-line bg-panel-2/60 p-2">
-            <div className="grid grid-cols-2 gap-1.5">
-              <Counter label="Adults" value={pax.adults} onChange={(v) => setPax('adults', v)} />
-              <Counter
-                label="Children"
-                value={pax.children}
-                onChange={(v) => setPax('children', v)}
-              />
-              <Counter
-                label="Infants"
-                value={pax.infants}
-                onChange={(v) => setPax('infants', v)}
-              />
-              <Counter
-                label="Seniors"
-                value={pax.seniors}
-                onChange={(v) => setPax('seniors', v)}
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-1.5">
               <label className="block">
                 <span className="mb-1 block text-[9.5px] uppercase tracking-wider text-faint">

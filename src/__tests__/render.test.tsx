@@ -71,6 +71,53 @@ describe('components render', () => {
     expect(html).toContain('JFK');
   });
 
+  it('renders the passenger controls in the open, not behind a menu', () => {
+    const { analysis } = build(EX2.text);
+    const noop = () => undefined;
+    const html = renderToStaticMarkup(
+      <LinkPanel
+        analysis={analysis}
+        options={{ ...options, passengers: { ...options.passengers, adults: 2 } }}
+        onOptionsChange={noop}
+      />,
+    );
+
+    expect(html).toContain('Passengers');
+    for (const label of ['Adults', 'Seniors', 'Children', 'Youth', 'Infants', 'Lap infants']) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain('A2S0C0I0Y0L0');
+    expect(html).toContain('Open on aa.com');
+  });
+
+  it('renders the codeshare badge and the operating-flight switch', () => {
+    const parsed = parseItinerary(
+      `1 EI 8812 19JAN JFK LHR 610P 615A¥1 351 7.05 0 N  CABIN-BUSINESS\n*JFK-LHR OPERATED BY /BA CABIN-BUSINESS`,
+      { now: NOW },
+    );
+    const analysis = analyze(parsed.segments, options, {
+      lookup,
+      thresholdHours: 24,
+      parseIssues: parsed.issues,
+      now: NOW,
+    });
+    const noop = () => undefined;
+    const html = renderToStaticMarkup(
+      <ItineraryPanel
+        plan={analysis.plan}
+        hasManualSlices={false}
+        onPatch={noop}
+        onRemove={noop}
+        onMove={noop}
+        onAdd={noop}
+        onResetSlices={noop}
+      />,
+    );
+
+    // The footnote now resolves to a code instead of being dropped.
+    expect(html).toContain('op. BA (British Airways)');
+  });
+
   it('renders an empty itinerary without crashing', () => {
     const { analysis } = build('');
     const noop = () => undefined;

@@ -34,7 +34,7 @@ why the `#` shows up as `%23` rather than starting a URL fragment.
 | 2 | Point of sale | known | Country whose AA storefront prices the trip (`US`). |
 | 3 | Trip type | known | `multi` (or `oneWay`). |
 | 4 | Search constant | constant | Always `4`, even for one-way links. Not the number of slices. |
-| 5 | Passenger mix | known | `A{a}S{s}C{c}I{i}Y{y}L{l}` — adults, seniors, children, infants, youth, lap. |
+| 5 | Passenger mix | known | `A{a}S{s}C{c}I{i}Y{y}L{l}` — adults, seniors (65+), children (2–11), infants in a seat, youth (12–17), lap infants (under 2). Nine seats is the cap; zero refuses to build. |
 | 6 | — | constant | `0`. |
 | 7 | First origin | known | Departure airport of the whole trip. |
 | 8 | — | constant | `0`. |
@@ -69,7 +69,9 @@ Every physical flight, concatenated with no separator:
 ```
 
 * `CARRIER` — the **marketing** carrier (2 characters). An AA codeshare stays `AA` even when the
-  operating carrier is BA.
+  operating carrier is BA. Rows whose operating carrier and number are both known can be switched
+  to send the operating flight instead — that is the workaround for a partner codeshare that
+  aa.com's schedule does not carry.
 * `CLASS` — a single booking letter. This is the field that makes mixed cabins possible.
 * `SLICE_INDEX` — 0-based index into field 19.
 
@@ -132,9 +134,30 @@ field 20 #AA|6943|R|EWR|LHR|1794353400000|0
 Note the classes: `R`, `J`, `I`, `I` — four different business fares in one envelope. That is the
 mixed-cabin hand-off in practice.
 
-## 7. Reference links (golden)
+## 7. Codeshares, and why a link can come back empty
 
-These three are asserted byte-for-byte in `src/__tests__/aaLink.test.ts`.
+aa.com resolves each segment by carrier + flight number. Its shelf holds AA flights, AA
+codeshares, and — because of the oneworld and JV agreements — partner **prime** flights
+(`BA 176`, `EI 105`, `AS 1342`). What it does not hold is a partner's codeshare of another
+partner's metal: `EI 8812` on a BA aircraft is an EI marketing number that never appears in
+aa.com's schedule, so the hand-off lands on nothing.
+
+The envelope has no slot for an operating carrier, so the only variable is which number you put
+in field 20. That is why the tool keeps both when the GDS gives both:
+
+| known | sent by default | alternative |
+| --- | --- | --- |
+| AA marketed, partner operated | `AA|6930` | — (this is what aa.com wants) |
+| partner marketed, same carrier operates | `BA|482` | — |
+| partner marketed, other partner operates | `EI|8812` | `BA|<prime>` or the AA codeshare, once typed into the row |
+
+Nothing else in the envelope changes when you swap: the timestamp, the class, the airports and
+the slice index all stay as they were.
+
+## 8. Reference links (golden)
+
+These four are asserted byte-for-byte in `src/__tests__/aaLink.test.ts` and
+`src/__tests__/passengers.test.ts`.
 
 **1 — JFK/LHR round trip**
 
@@ -148,13 +171,21 @@ https://www.aa.com/goto/metasearch?ITEN=DIRECT%2C0%2CUS%2Cmulti%2C4%2CA1S0C0I0Y0
 https://www.aa.com/goto/metasearch?ITEN=DIRECT%2C0%2CUS%2Cmulti%2C4%2CA1S0C0I0Y0L0%2C0%2CJFK%2C0%2CBCN%2C0%2C0%2C0%2C0%2C0%2C0%2C0%2C0.00%2C1%2C%23JFK%7CBCN%7C0%7C0%7C1794444300000%23BCN%7CJFK%7C0%7C0%7C1797420300000%2C%23AA%7C94%7CI%7CJFK%7CMAD%7C1794444300000%7C0%23AA%7C8727%7CI%7CMAD%7CBCN%7C1794475500000%7C0%23AA%7C67%7CI%7CBCN%7CJFK%7C1797420300000%7C1
 ```
 
-**3 — EWR–LHR–FRA outbound, FRA–LHR–JFK back**
+**3 — the same itinerary as #2, two adults**
+
+Only field 5 moves: `A1S0C0I0Y0L0` → `A2S0C0I0Y0L0`.
+
+```
+https://www.aa.com/goto/metasearch?ITEN=DIRECT%2C0%2CUS%2Cmulti%2C4%2CA2S0C0I0Y0L0%2C0%2CJFK%2C0%2CBCN%2C0%2C0%2C0%2C0%2C0%2C0%2C0%2C0.00%2C1%2C%23JFK%7CBCN%7C0%7C0%7C1794444300000%23BCN%7CJFK%7C0%7C0%7C1797420300000%2C%23AA%7C94%7CI%7CJFK%7CMAD%7C1794444300000%7C0%23AA%7C8727%7CI%7CMAD%7CBCN%7C1794475500000%7C0%23AA%7C67%7CI%7CBCN%7CJFK%7C1797420300000%7C1
+```
+
+**4 — EWR–LHR–FRA outbound, FRA–LHR–JFK back**
 
 ```
 https://www.aa.com/goto/metasearch?ITEN=DIRECT%2C0%2CUS%2Cmulti%2C4%2CA1S0C0I0Y0L0%2C0%2CEWR%2C0%2CFRA%2C0%2C0%2C0%2C0%2C0%2C0%2C0%2C0.00%2C1%2C%23EWR%7CFRA%7C0%7C0%7C1794353400000%23FRA%7CJFK%7C0%7C0%7C1797402000000%2C%23AA%7C6943%7CR%7CEWR%7CLHR%7C1794353400000%7C0%23AA%7C7123%7CJ%7CLHR%7CFRA%7C1794383100000%7C0%23AA%7C6842%7CI%7CFRA%7CLHR%7C1797402000000%7C1%23AA%7C6936%7CI%7CLHR%7CJFK%7C1797413700000%7C1
 ```
 
-## 8. Still unknown
+## 9. Still unknown
 
 * What fields 1, 6, 8, 10–16 and 18 control. They have been `0` (and `1` for 18) in every recorded
   link, including one-ways and five-slice itineraries. Treating them as constants has not broken

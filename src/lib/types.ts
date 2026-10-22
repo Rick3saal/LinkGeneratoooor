@@ -16,6 +16,8 @@ export interface Segment {
   destination: string;
   /** Local departure date, ISO `yyyy-mm-dd`. */
   depDate: string;
+  /** True when the departure year was inferred from today (a bare `19JAN` token). */
+  yearInferred?: boolean;
   /** Local departure time, `HH:mm` 24h. */
   depTime: string;
   /** Local arrival time, `HH:mm` 24h. May be empty when the source had none. */
@@ -24,6 +26,15 @@ export interface Segment {
   arrDayOffset: number;
   /** Free-text operating carrier, e.g. "BRITISH AIRWAYS" for a codeshare. */
   operatedBy?: string;
+  /** Resolved two-letter operating carrier, e.g. "BA", when the source named one. */
+  operatingCarrier?: string;
+  /** Operating carrier's own flight number, when the source named one (e.g. "178"). */
+  operatingFlight?: string;
+  /**
+   * Which carrier/number the hand-off carries when both are known.
+   * `marketing` (default) sends what the GDS sold; `operating` sends the metal.
+   */
+  sendAs?: 'marketing' | 'operating';
   /** Manual override for slice detection: true = start a new slice, false = stay. */
   newSliceOverride?: boolean | null;
   /** Manual IANA timezone override for the departure airport. */

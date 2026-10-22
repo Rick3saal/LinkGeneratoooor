@@ -245,17 +245,23 @@ export function Toggle({
   onChange,
   label,
   hint,
+  disabled,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
   label: string;
   hint?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between gap-3 rounded-lg border border-line bg-panel-2 px-2.5 py-1.5 text-left transition-colors hover:border-line-2"
+      className={cn(
+        'flex w-full items-center justify-between gap-3 rounded-lg border border-line bg-panel-2 px-2.5 py-1.5 text-left transition-colors',
+        disabled ? 'cursor-not-allowed opacity-45' : 'hover:border-line-2',
+      )}
     >
       <span className="min-w-0">
         <span className="block text-[11.5px] text-ink">{label}</span>
