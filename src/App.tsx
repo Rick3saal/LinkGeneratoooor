@@ -131,7 +131,7 @@ export default function App() {
 
   return (
     <div className="relative z-10 min-h-screen">
-      <div className="mx-auto w-full max-w-[1440px] px-3 pb-28 sm:px-5 lg:px-8 lg:pb-14">
+      <div className="mx-auto w-full max-w-[1440px] px-3 pb-28 sm:px-5 lg:px-8 xl:pb-14">
         <Header onInspect={() => setDecodeOpen(true)} />
         <Hero />
 
@@ -203,7 +203,7 @@ export default function App() {
       </div>
 
       {analysis?.canBuild && link && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-panel/95 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-panel/95 px-3 py-2 backdrop-blur xl:hidden">
           <div className="mx-auto flex max-w-3xl items-center gap-2">
             <Button
               variant="primary"

@@ -430,7 +430,12 @@ export function parseItinerary(text: string, opts: ParseOptions = {}): ParseResu
   let skipped = 0;
 
   rawLines.forEach((rawLine) => {
-    const line = rawLine.trim();
+    // Pastes from mail/chat often carry HTML entities around the section marker.
+    const line = rawLine
+      .trim()
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&');
     if (!line) return;
 
     if (ADDITIONAL_MARKER.test(line)) {

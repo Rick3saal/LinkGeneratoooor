@@ -188,3 +188,25 @@ describe('timezones', () => {
     );
   });
 });
+
+describe('robustness', () => {
+  it('accepts an HTML-escaped additional marker', () => {
+    const text = `1 AA 142 10NOV JFK LHR 1010A 1010P 777 7.00 0 N  CABIN-BUSINESS
+2 AA 6930 16DEC LHR JFK 820A 1120A 777 8.00 0 N  CABIN-BUSINESS
+&lt;--additional--&gt;
+1 AA 142I 10NOV
+2 AA 6930I 16DEC`;
+    const parsed = parseItinerary(text, { now: NOW });
+    expect(parsed.segments).toHaveLength(2);
+    expect(parsed.segments.map((s) => s.bookingClass)).toEqual(['I', 'I']);
+  });
+
+  it('treats a dashed line as an explicit slice break', () => {
+    const text = `1 AA 100 J 01DEC JFK LHR 0700 1900
+---
+2 AA 101 J 01DEC LHR JFK 2100 2355`;
+    const parsed = parseItinerary(text, { now: NOW });
+    expect(parsed.segments).toHaveLength(2);
+    expect(parsed.segments[1].newSliceOverride).toBe(true);
+  });
+});
