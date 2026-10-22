@@ -1,7 +1,8 @@
 import { cabinForClass } from './classes';
 import { CABIN_META } from './classes';
-import { isoDate } from './time';
-import type { Issue, Segment } from './types';
+import { isAaSellable, labelCarrier, looksLikeCodeshareNumber } from './carriers';
+import { formatShortDate, isoDate } from './time';
+import type { Issue, PassengerCounts, Segment } from './types';
 
 /** Field-level checks on the (possibly hand-edited) segments. */
 export function segmentChecks(segments: Segment[], now: Date = new Date()): Issue[] {
@@ -79,22 +80,125 @@ export function segmentChecks(segments: Segment[], now: Date = new Date()): Issu
     }
   });
 
-  const carriers = [...new Set(segments.map((s) => s.carrier).filter(Boolean))].sort();
-  if (carriers.length && !carriers.includes('AA')) {
+  // ---- Codeshares -------------------------------------------------
+  // A GDS row carries the *marketing* carrier; the footnote carries the metal.
+  // aa.com resolves a hand-off by carrier + flight number, and it only knows
+  // the numbers its own shelf sells: AA, AA codeshares, and partner prime
+  // flights. A partner's codeshare of another partner's metal is the case that
+  // comes back "we couldn't find that flight".
+  for (const s of segments) {
+    if (!s.operatingCarrier || !s.carrier) continue;
+    if (s.operatingCarrier.toUpperCase() === s.carrier.toUpperCase()) continue;
+
+    const opLabel = labelCarrier(s.operatingCarrier);
+    const markLabel = labelCarrier(s.carrier);
+    const sendingOperating = s.sendAs === 'operating';
+
+    // An AA codeshare of a partner's metal is the happy path: aa.com sells it
+    // under the AA number, which is what the envelope already carries.
+    if (s.carrier.toUpperCase() === 'AA') {
+      if (!sendingOperating) {
+        issues.push({
+          level: 'info',
+          code: 'aa-codeshare',
+          message: `${s.carrier} ${s.flightNumber} is operated by ${opLabel}.`,
+          detail:
+            'An AA codeshare is exactly what the hand-off wants — keep the AA number. Switch the row to the operating flight only if aa.com comes back empty.',
+          segmentId: s.id,
+        });
+        continue;
+      }
+    }
+
+    if (sendingOperating && s.operatingFlight) {
+      issues.push({
+        level: 'info',
+        code: 'codeshare-operating-sent',
+        message: `${s.carrier} ${s.flightNumber} is handed off as ${s.operatingCarrier} ${s.operatingFlight}.`,
+        detail: `The link carries the operating flight (${opLabel}) instead of the marketed one (${markLabel}).`,
+        segmentId: s.id,
+      });
+      continue;
+    }
+
     issues.push({
       level: 'warning',
-      code: 'no-aa-marketing',
-      message: `None of these flights is marketed by AA (${carriers.join(', ')}).`,
-      detail:
-        'The aa.com hand-off only quotes AA-marketed flights. Use the AA codeshare numbers when the flights are sold by AA.',
+      code: 'codeshare',
+      message: `${s.carrier} ${s.flightNumber} is operated by ${opLabel} — aa.com may not carry that number.`,
+      detail: s.operatingFlight
+        ? `The note gave the operating flight (${s.operatingCarrier} ${s.operatingFlight}): open the row and switch “Send the operating flight” on to hand it off as ${s.operatingCarrier} ${s.operatingFlight}.`
+        : `A partner codeshare is usually invisible to aa.com's schedule. Find the operating (prime) number or the AA codeshare, type it into the row's “Operating flight”, and switch it on.`,
+      segmentId: s.id,
     });
-  } else if (carriers.filter((c) => c !== 'AA').length) {
-    const others = carriers.filter((c) => c !== 'AA');
+  }
+
+  for (const s of segments) {
+    if (s.operatingCarrier) continue;
+    if (!s.carrier || !s.flightNumber) continue;
+    if (!looksLikeCodeshareNumber(s.carrier, s.flightNumber)) continue;
+    issues.push({
+      level: 'info',
+      code: 'likely-codeshare',
+      message: `${s.carrier} ${s.flightNumber} is in the codeshare number range.`,
+      detail:
+        'Four-digit numbers from 5000 up are almost always a codeshare. If aa.com cannot find it, send the operating carrier’s own flight number instead.',
+      segmentId: s.id,
+    });
+  }
+
+  // ---- Marketing carriers -----------------------------------------
+  const carriers = [...new Set(segments.map((s) => s.carrier).filter(Boolean))].sort();
+  const unsellable = carriers.filter((c) => !isAaSellable(c));
+  const partners = carriers.filter((c) => c !== 'AA' && isAaSellable(c));
+
+  if (unsellable.length) {
     issues.push({
       level: 'warning',
+      code: 'carrier-not-priced',
+      message: `aa.com does not price ${unsellable.map(labelCarrier).join(', ')}-marketed flights.`,
+      detail:
+        'The hand-off resolves flights by carrier + flight number. Re-book these under an AA codeshare (or send the operating carrier’s number from the row below) — aa.com will not find them as they stand.',
+    });
+  }
+
+  if (carriers.length && !carriers.includes('AA') && !unsellable.length) {
+    issues.push({
+      level: 'info',
+      code: 'no-aa-marketing',
+      message: `No AA flight number in this itinerary (${partners.map(labelCarrier).join(', ')}).`,
+      detail:
+        'aa.com sells oneworld and partner prime flights directly, so this can work — but only if aa.com carries each number as marketed. Codeshares between two partners usually fail; switch those rows to the operating flight.',
+    });
+  } else if (partners.length && !unsellable.length) {
+    issues.push({
+      level: 'info',
       code: 'mixed-carriers',
-      message: `Mixed marketing carriers: ${carriers.join(', ')}.`,
-      detail: `aa.com prices AA-marketed flights — the ${others.join(', ')} segments may not appear. Prefer the AA codeshare number.`,
+      message: `Mixed marketing carriers: ${carriers.map(labelCarrier).join(', ')}.`,
+      detail: `aa.com prices AA and partner prime flights. Any ${partners.join(', ')} codeshare of another carrier's metal has to be sent under its operating number.`,
+    });
+  }
+
+  // ---- Year inference ---------------------------------------------
+  // A bare `19JAN` becomes the *next* 19 January from today. Get that wrong and
+  // every timestamp in the envelope is a year out — the classic "aa.com says it
+  // cannot find that flight" with no other visible symptom.
+  const inferredYears = [
+    ...new Set(
+      segments.filter((s) => s.yearInferred && s.depDate).map((s) => s.depDate.slice(0, 4)),
+    ),
+  ].sort();
+  if (inferredYears.length) {
+    const samples = segments
+      .filter((s) => s.yearInferred && s.depDate)
+      .slice(0, 3)
+      .map((s) => formatShortDate(s.depDate))
+      .join(', ');
+    issues.push({
+      level: 'info',
+      code: 'inferred-year',
+      message: `Dates without a year were read as ${inferredYears.join(', ')} (${samples}).`,
+      detail:
+        'A bare date gets its next occurrence from today. Pin the year in the paste panel if that is not the one you meant — a year out and the hand-off finds nothing.',
     });
   }
 
@@ -115,5 +219,38 @@ export function segmentChecks(segments: Segment[], now: Date = new Date()): Issu
     });
   }
 
+  return issues;
+}
+
+/**
+ * Passenger-mix sanity checks. The counts themselves travel in ITEN field 5
+ * (`A2S0C0I0Y0L0`); these are the rules aa.com enforces at the passenger step.
+ */
+export function passengerChecks(passengers: PassengerCounts): Issue[] {
+  const issues: Issue[] = [];
+  const { adults, seniors, children, infants, youth, lap } = passengers;
+  const total = adults + seniors + children + infants + youth + lap;
+  const grownUps = adults + seniors;
+  const babies = infants + lap;
+  if (total === 0) return issues;
+
+  if (babies > grownUps) {
+    issues.push({
+      level: 'warning',
+      code: 'infant-per-adult',
+      message: `${babies} infant${babies === 1 ? '' : 's'} for ${grownUps} adult${grownUps === 1 ? '' : 's'}.`,
+      detail:
+        'aa.com allows one infant (lap or seated) per adult or senior. It will drop the rest at the passenger step.',
+    });
+  }
+  if (!grownUps && (children || youth)) {
+    issues.push({
+      level: 'warning',
+      code: 'unaccompanied-minor',
+      message: 'Children or youth travelling with no adult on the booking.',
+      detail:
+        'aa.com only sells that through its unaccompanied-minor desk, not through the metasearch hand-off.',
+    });
+  }
   return issues;
 }

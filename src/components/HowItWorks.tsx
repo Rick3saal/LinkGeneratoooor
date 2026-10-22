@@ -19,7 +19,7 @@ const STEPS = [
     icon: Link2,
     title: 'One ITEN envelope',
     body:
-      'Slices, then every segment with its own class, then percent-encoding. aa.com reads it as a completed search — no form filling, no “choose your cabin” filter to fight.',
+      'Slices, then every segment with its own class, then percent-encoding. Passengers ride along in field 5 (A2S0C0I0Y0L0 for a couple), nine seats at most. aa.com reads it as a completed search — no form filling, no “choose your cabin” filter to fight.',
   },
 ];
 
@@ -85,8 +85,10 @@ export function HowItWorks() {
               the itinerary on arrival and can still refuse a combination at the fare step.
             </li>
             <li>
-              <span className="text-ink/80">AA-marketed numbers only.</span> A flight sold only as
-              BA 176 will not resolve — use the AA codeshare number (AA 6930) instead.
+              <span className="text-ink/80">It can only send numbers aa.com carries.</span> AA
+              codeshares and partner prime flights resolve; a partner's codeshare of another
+              partner's metal (EI 8812 on BA aircraft) usually does not — the tool flags those
+              rows, and you can hand off the operating flight instead.
             </li>
             <li>
               <span className="text-ink/80">Availability still rules.</span> The class must be open

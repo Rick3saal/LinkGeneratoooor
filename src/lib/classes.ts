@@ -74,43 +74,5 @@ export const ALL_CLASSES = Array.from(
   new Set(Object.values(CABIN_CLASSES).flat()),
 ).sort();
 
-/** Names of carriers commonly seen as the operating carrier on AA codeshares. */
-export const OPERATING_CARRIER_CODES: Record<string, string> = {
-  'AMERICAN AIRLINES': 'AA',
-  'AMERICAN EAGLE': 'AA',
-  'BRITISH AIRWAYS': 'BA',
-  IBERIA: 'IB',
-  'IBERIA REGIONAL': 'IB',
-  'JAPAN AIRLINES': 'JL',
-  'JAL': 'JL',
-  QANTAS: 'QF',
-  'FINNAIR': 'AY',
-  'GULF AIR': 'GF',
-  'AIR TAHITI NUI': 'TN',
-  'ALASKA AIRLINES': 'AS',
-  'CATHAY PACIFIC': 'CX',
-  'MALAYSIA AIRLINES': 'MH',
-  'SRI LANKAN AIRLINES': 'UL',
-  'ROYAL JORDANIAN': 'RJ',
-  'QATAR AIRWAYS': 'QR',
-  'JETBLUE': 'B6',
-  'AIR NEW ZEALAND': 'NZ',
-  'CHINA SOUTHERN': 'CZ',
-  'LATAM': 'LA',
-  'AER LINGUS': 'EI',
-  'AIR EUROPA': 'UX',
-  'LEVEL': 'LV',
-  'VUELING': 'VY',
-  'NORWEGIAN': 'DY',
-  'WESTJET': 'WS',
-};
-
-export function operatingCarrierCode(name: string | undefined): string | undefined {
-  if (!name) return undefined;
-  const key = name.toUpperCase().replace(/\s+/g, ' ').trim();
-  if (OPERATING_CARRIER_CODES[key]) return OPERATING_CARRIER_CODES[key];
-  for (const [k, v] of Object.entries(OPERATING_CARRIER_CODES)) {
-    if (key.startsWith(k)) return v;
-  }
-  return undefined;
-}
+/* Operating-carrier names → codes now live in `carriers.ts`, next to the
+ * carrier directory and the "will aa.com price this?" rule. */

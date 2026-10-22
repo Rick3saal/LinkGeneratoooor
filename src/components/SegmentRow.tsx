@@ -2,6 +2,7 @@ import { ChevronDown, MoveDown, MoveUp, Trash2, TriangleAlert } from 'lucide-rea
 import { useState } from 'react';
 import { COMMON_TIMEZONES } from '../lib/airports';
 import { ALL_CLASSES, CABINS, CABIN_META } from '../lib/classes';
+import { carrierName, looksLikeCodeshareNumber } from '../lib/carriers';
 import { cn } from '../lib/cn';
 import type { SliceItem } from '../lib/slices';
 import { parseDateToken, parseTimeToken } from '../lib/parse';
@@ -160,10 +161,30 @@ export function SegmentRow({
   canMoveUp,
   canMoveDown,
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => {
+    // A partner codeshare with no operating number yet is the one case that
+    // needs the user, so those rows open themselves.
+    const op = item.segment.operatingCarrier;
+    return (
+      !!op &&
+      !!item.segment.carrier &&
+      op.toUpperCase() !== item.segment.carrier.toUpperCase() &&
+      item.segment.carrier.toUpperCase() !== 'AA' &&
+      !item.segment.operatingFlight
+    );
+  });
   const s = item.segment;
   const color = SLICE_COLORS[sliceIndex % SLICE_COLORS.length];
   const cabin = CABIN_META[s.cabin];
+  const opCode = s.operatingCarrier ?? '';
+  const isCodeshare = !!opCode && !!s.carrier && opCode.toUpperCase() !== s.carrier.toUpperCase();
+  /** Partner codeshare with no operating number yet — aa.com will likely miss it. */
+  const needsOperatingNumber = isCodeshare && s.carrier.toUpperCase() !== 'AA' && !s.operatingFlight;
+  const sendingOperating = s.sendAs === 'operating' && !!s.operatingFlight;
+  const canSendOperating = !!opCode && !!s.operatingFlight;
+  const opLabel = opCode
+    ? `${opCode} (${carrierName(opCode)})`
+    : (s.operatedBy ?? '').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
   const tz = item.tz;
   const offsetLabel = tz && !Number.isNaN(item.depUtc) ? formatTimezoneLabel(tz, item.depUtc) : null;
   const durationLabel =
@@ -345,9 +366,34 @@ export function SegmentRow({
               · est.
             </span>
           )}
-          {s.operatedBy && (
-            <span className="ml-1 rounded bg-violet-500/10 px-1.5 py-[1px] text-[10px] text-violet-300/90 ring-1 ring-inset ring-violet-500/20">
-              op. {s.operatedBy.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase())}
+          {(isCodeshare || s.operatedBy) && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              title={
+                isCodeshare
+                  ? `${s.carrier} ${s.flightNumber} is operated by ${opLabel}. Open the details to send the operating flight instead.`
+                  : `Operated by ${opLabel}`
+              }
+              className={cn(
+                'ml-1 rounded px-1.5 py-[1px] text-[10px] ring-1 ring-inset transition-opacity hover:opacity-80',
+                needsOperatingNumber
+                  ? 'bg-amber-500/10 text-amber-300 ring-amber-500/25'
+                  : isCodeshare
+                    ? 'bg-violet-500/10 text-violet-300/90 ring-violet-500/20'
+                    : 'bg-white/[0.04] text-muted ring-white/10',
+              )}
+            >
+              op. {opLabel}
+              {needsOperatingNumber && ' · needs a number'}
+            </button>
+          )}
+          {sendingOperating && (
+            <span
+              title="The link carries the operating flight instead of the marketed one"
+              className="ml-1 rounded bg-gold-400/10 px-1.5 py-[1px] font-mono text-[10px] text-gold-300 ring-1 ring-inset ring-gold-400/20"
+            >
+              sends {opCode} {s.operatingFlight}
             </span>
           )}
           {!Number.isNaN(item.depUtc) && (
@@ -427,6 +473,88 @@ export function SegmentRow({
                 </button>
               </div>
             </div>
+
+            {(isCodeshare ||
+              s.operatedBy ||
+              looksLikeCodeshareNumber(s.carrier, s.flightNumber)) && (
+              <div className="space-y-2 rounded-lg border border-violet-500/20 bg-violet-500/[0.04] p-2 sm:col-span-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-faint">
+                    Operated by
+                  </span>
+                  {isCodeshare && (
+                    <span className="rounded bg-violet-500/10 px-1.5 py-[1px] text-[9.5px] text-violet-300 ring-1 ring-inset ring-violet-500/20">
+                      codeshare
+                    </span>
+                  )}
+                  <span className="ml-auto font-mono text-[10px] text-faint">
+                    {s.carrier} {s.flightNumber}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] uppercase tracking-wider text-faint">
+                      Operating carrier
+                    </span>
+                    <input
+                      aria-label="Operating carrier"
+                      value={s.operatingCarrier ?? ''}
+                      spellCheck={false}
+                      placeholder="BA"
+                      onChange={(event) => {
+                        const value = event.target.value
+                          .replace(/[^a-zA-Z0-9]/g, '')
+                          .toUpperCase()
+                          .slice(0, 2);
+                        onChange({
+                          operatingCarrier: value || undefined,
+                          operatedBy: value ? s.operatedBy ?? value : undefined,
+                        });
+                      }}
+                      className="field px-2 py-1 font-mono text-[12px] uppercase"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] uppercase tracking-wider text-faint">
+                      Operating flight
+                    </span>
+                    <input
+                      aria-label="Operating flight number"
+                      value={s.operatingFlight ?? ''}
+                      spellCheck={false}
+                      placeholder="178"
+                      onChange={(event) =>
+                        onChange({
+                          operatingFlight: event.target.value.replace(/[^0-9]/g, '').slice(0, 4),
+                        })
+                      }
+                      className="field px-2 py-1 font-mono text-[12px]"
+                    />
+                  </label>
+                </div>
+
+                <Toggle
+                  checked={s.sendAs === 'operating'}
+                  onChange={(next) => onChange({ sendAs: next ? 'operating' : 'marketing' })}
+                  disabled={!canSendOperating}
+                  label="Send the operating flight"
+                  hint={
+                    canSendOperating
+                      ? `The link carries ${opCode} ${s.operatingFlight} instead of ${s.carrier} ${s.flightNumber}.`
+                      : 'Fill in the operating carrier and its flight number to switch.'
+                  }
+                />
+
+                <p className="text-[9.5px] leading-snug text-faint">
+                  aa.com finds a flight by carrier + flight number. It carries AA, AA codeshares
+                  and partner prime flights — a partner's codeshare of another partner's metal
+                  (like {s.carrier} {s.flightNumber}
+                  {isCodeshare ? ` on ${opCode}` : ''}) is usually invisible to it. Send the
+                  operating number, or the AA codeshare, when the link comes back empty.
+                </p>
+              </div>
+            )}
 
             {s.raw && (
               <div className="sm:col-span-2">

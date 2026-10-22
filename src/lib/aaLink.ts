@@ -1,5 +1,5 @@
 import type { SliceItem } from './slices';
-import type { BuildOptions, Issue } from './types';
+import type { BuildOptions, Issue, Segment } from './types';
 
 export const AA_METASEARCH_BASE = 'https://www.aa.com/goto/metasearch?ITEN=';
 
@@ -22,7 +22,7 @@ export const ITEN_FIELD_DOCS: {
   { index: 2, key: 'pos', label: 'Point of sale', status: 'known', note: 'Country whose AA storefront prices the itinerary (US).' },
   { index: 3, key: 'tripType', label: 'Trip type', status: 'known', note: 'multi for multi-city, oneWay for a single slice.' },
   { index: 4, key: 'four', label: 'Search constant', status: 'constant', note: 'Always 4 — including one-way links. Not the number of slices.' },
-  { index: 5, key: 'pax', label: 'Passengers', status: 'known', note: 'A adults, S seniors, C children, I infants, Y youth, L lap infants.' },
+  { index: 5, key: 'pax', label: 'Passengers', status: 'known', note: 'A adults, S seniors (65+), C children (2–11), I infants in a seat, Y youth (12–17), L lap infants (under 2). 9 seats maximum.' },
   { index: 6, key: 'zero', label: 'Reserved', status: 'constant', note: 'Always 0.' },
   { index: 7, key: 'origin', label: 'First origin', status: 'known', note: 'Departure airport of the whole trip.' },
   { index: 8, key: 'zero', label: 'Reserved', status: 'constant', note: 'Always 0.' },
@@ -37,7 +37,7 @@ export const ITEN_FIELD_DOCS: {
   { index: 17, key: 'price', label: 'Price', status: 'known', note: 'Fare figure carried for display. AA re-prices everything; 0.00 is safe.' },
   { index: 18, key: 'tail', label: 'Constant tail', status: 'constant', note: 'Always 1 in every recorded link.' },
   { index: 19, key: 'slices', label: 'Slices', status: 'known', note: '#FROM|TO|0|0|DEP_UTC_MS — one per direction, concatenated without separator.' },
-  { index: 20, key: 'segments', label: 'Segments', status: 'known', note: '#CARRIER|FLIGHT|CLASS|FROM|TO|DEP_UTC_MS|SLICE_INDEX — the whole itinerary, concatenated.' },
+  { index: 20, key: 'segments', label: 'Segments', status: 'known', note: '#CARRIER|FLIGHT|CLASS|FROM|TO|DEP_UTC_MS|SLICE_INDEX — the whole itinerary, concatenated. Carrier/flight default to the marketing carrier; a codeshare row can be switched to the operating flight.' },
 ];
 
 export interface BuildInput {
@@ -58,6 +58,25 @@ export function passengerCode(options: BuildOptions): string {
   const p = options.passengers;
   const clamp = (n: number) => (Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
   return `A${clamp(p.adults)}S${clamp(p.seniors)}C${clamp(p.children)}I${clamp(p.infants)}Y${clamp(p.youth)}L${clamp(p.lap)}`;
+}
+
+/**
+ * Which carrier + flight number the hand-off carries for a segment.
+ *
+ * Defaults to the marketing carrier — what the GDS sold. When the itinerary
+ * named the operating carrier *and* its flight number, the row can be flipped
+ * to send the metal instead, which is what aa.com usually needs for a
+ * partner-marketed codeshare it does not carry itself.
+ */
+export function handoffFlight(segment: Segment): { carrier: string; flightNumber: string } {
+  if (
+    segment.sendAs === 'operating' &&
+    segment.operatingCarrier &&
+    segment.operatingFlight
+  ) {
+    return { carrier: segment.operatingCarrier, flightNumber: segment.operatingFlight };
+  }
+  return { carrier: segment.carrier, flightNumber: segment.flightNumber };
 }
 
 export function normalizePrice(price: string): string {
@@ -120,6 +139,15 @@ export function buildAaLink(input: BuildInput): BuiltLink {
         segmentId: s.id,
       });
     }
+    if (s.sendAs === 'operating' && (!s.operatingCarrier || !s.operatingFlight)) {
+      errors.push({
+        level: 'error',
+        code: 'operating-flight-incomplete',
+        message: `Segment ${item.index + 1} is set to send the operating flight, but its number is missing.`,
+        detail: 'Fill in the operating carrier and flight number in the row, or switch back to the marketed flight.',
+        segmentId: s.id,
+      });
+    }
     if (!item.tz) {
       errors.push({
         level: 'error',
@@ -151,6 +179,14 @@ export function buildAaLink(input: BuildInput): BuiltLink {
       message: 'aa.com cannot price more than 9 passengers in one search.',
     });
   }
+  if (paxTotal < 1) {
+    errors.push({
+      level: 'error',
+      code: 'no-passengers',
+      message: 'Add at least one passenger.',
+      detail: 'The envelope carries the passenger mix in field 5 — A0S0C0I0Y0L0 prices nothing.',
+    });
+  }
   if (slices.length > 5) {
     errors.push({
       level: 'error',
@@ -172,8 +208,9 @@ export function buildAaLink(input: BuildInput): BuiltLink {
     parts.push(`#${first.segment.origin}|${last.segment.destination}|0|0|${first.depUtc}`);
     for (const item of slice) {
       const s = item.segment;
+      const handoff = handoffFlight(s);
       flights.push(
-        `#${s.carrier}|${s.flightNumber}|${s.bookingClass}|${s.origin}|${s.destination}|${item.depUtc}|${sliceIndex}`,
+        `#${handoff.carrier}|${handoff.flightNumber}|${s.bookingClass}|${s.origin}|${s.destination}|${item.depUtc}|${sliceIndex}`,
       );
     }
   });

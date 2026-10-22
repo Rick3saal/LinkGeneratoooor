@@ -1,4 +1,5 @@
 import { cabinForClass } from './classes';
+import { operatingCarrierCode } from './carriers';
 import { inferYear, isoDate } from './time';
 import type { Cabin, Issue, Segment } from './types';
 
@@ -368,6 +369,7 @@ export function parseSegmentLine(
   }
 
   const year = date.year ?? opts.yearOverride ?? inferYear(date.month, date.day, opts.now);
+  const yearInferred = !date.year && opts.yearOverride == null;
   const segment = makeSegment({
     carrier: carrierHit.carrier,
     flightNumber: carrierHit.flightNumber,
@@ -376,6 +378,7 @@ export function parseSegmentLine(
     origin,
     destination,
     depDate: isoDate(year, date.month, date.day),
+    yearInferred,
     depTime: dep ? `${String(dep.hour).padStart(2, '0')}:${String(dep.minute).padStart(2, '0')}` : '',
     arrTime: arr ? `${String(arr.hour).padStart(2, '0')}:${String(arr.minute).padStart(2, '0')}` : '',
     arrDayOffset,
@@ -388,6 +391,70 @@ export function parseSegmentLine(
   }
 
   return { segment, explicitBreak };
+}
+
+/* ------------------------------------------------------------------ */
+/* Operating carrier ("OPERATED BY …")                                  */
+/* ------------------------------------------------------------------ */
+
+export interface OperatedBy {
+  /** Free-text operating carrier as written in the source, e.g. "BRITISH AIRWAYS". */
+  name: string;
+  /** Two-letter operating carrier code when it could be resolved, e.g. "BA". */
+  code?: string;
+  /** The operating carrier's own flight number, when the note carried one. */
+  flight?: string;
+}
+
+/**
+ * Reads an operating-carrier footnote into a code.
+ *
+ * Understands the shapes a GDS actually writes, including the ones that used
+ * to slip straight through:
+ *
+ *   *LHR-JFK OPERATED BY BRITISH AIRWAYS
+ *   *JFK-LHR OPERATED BY /BA CABIN-BUSINESS
+ *   *LHR-JFK OPERATED BY BA 178
+ *   OPERATED BY: BRITISH AIRWAYS.
+ *   *OP BY BRITISH AIRWAYS
+ */
+export function parseOperatedByLine(line: string): OperatedBy | null {
+  const match = /(?:operated|op)\s*by\s*:?\s*(.+)$/i.exec(line.replace(/^[*\s]+/, '').trim());
+  if (!match) return null;
+
+  let value = match[1]
+    .trim()
+    // Drop whatever follows the cabin note: "… /BA CABIN-BUSINESS".
+    .replace(/\bcabin\b[\s\S]*$/i, '')
+    .replace(/[.,;:]+$/, '')
+    .trim();
+  if (!value) return null;
+
+  // "/BA 178" → carrier BA, flight 178.
+  const withFlight = /^\/?\*?([A-Z0-9]{2})\s+(\d{1,4})$/i.exec(value);
+  let flight: string | undefined;
+  if (withFlight) {
+    value = withFlight[1];
+    flight = withFlight[2];
+  }
+
+  // The slash form the GDS writes: "/BA", "*BA", "-BA".
+  value = value.replace(/^[/\\*.\-]+/, '').trim();
+  if (!value) return null;
+
+  return { name: value.toUpperCase(), code: operatingCarrierCode(value), flight };
+}
+
+/** Attach an operating-carrier footnote to the segment it belongs to. */
+export function applyOperatedBy(segment: Segment, op: OperatedBy): void {
+  segment.operatedBy = op.name;
+  if (op.code) segment.operatingCarrier = op.code;
+  if (op.flight) segment.operatingFlight = op.flight;
+}
+
+/** True when the line carries a date token, i.e. it looks like a flight row. */
+function hasDateToken(line: string): boolean {
+  return cleanLineForTokens(line).some((token) => parseDateToken(token) !== null);
 }
 
 /* ------------------------------------------------------------------ */
@@ -448,14 +515,26 @@ export function parseItinerary(text: string, opts: ParseOptions = {}): ParseResu
       return;
     }
 
-    // Operating-carrier annotation, e.g. "*LHR-JFK OPERATED BY BRITISH AIRWAYS"
+    let inlineOperatedBy: OperatedBy | null = null;
+
+    // Operating-carrier footnote, e.g. "*JFK-LHR OPERATED BY /BA CABIN-BUSINESS".
     if (line.startsWith('*')) {
-      const op = /operated\s+by\s+([A-Za-z0-9&.\- ]+)/i.exec(line);
-      if (op && segments.length) {
-        const last = segments[segments.length - 1];
-        last.operatedBy = op[1].trim().replace(/[.,;]+$/, '').toUpperCase();
-      }
+      const op = parseOperatedByLine(line);
+      if (op && segments.length) applyOperatedBy(segments[segments.length - 1], op);
       return;
+    }
+
+    // Same note without its leading asterisk (mailed/chatted pastes lose it):
+    // it belongs to the previous segment unless the line is a flight row too.
+    if (/operated\s+by/i.test(line)) {
+      const op = parseOperatedByLine(line);
+      if (op) {
+        if (!hasDateToken(line)) {
+          if (segments.length) applyOperatedBy(segments[segments.length - 1], op);
+          return;
+        }
+        inlineOperatedBy = op;
+      }
     }
 
     if (/^(\/\/|#|--\s)/.test(line) && !parseDateToken(line)) {
@@ -490,6 +569,7 @@ export function parseItinerary(text: string, opts: ParseOptions = {}): ParseResu
       parsed.segment.newSliceOverride = true;
       pendingBreak = false;
     }
+    if (inlineOperatedBy) applyOperatedBy(parsed.segment, inlineOperatedBy);
     segments.push(parsed.segment);
   });
 
