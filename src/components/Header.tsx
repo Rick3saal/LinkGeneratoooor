@@ -18,7 +18,7 @@ export function Header({ onInspect }: { onInspect: () => void }) {
               AA
             </span>
           </h1>
-          <p className="truncate text-[10.5px] text-muted">
+          <p className="hidden truncate text-[10.5px] text-muted sm:block">
             GDS itineraries → aa.com metasearch deep links
           </p>
         </div>

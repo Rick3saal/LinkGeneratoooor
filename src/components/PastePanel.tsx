@@ -1,4 +1,4 @@
-import { ClipboardPaste, Eraser, FileText } from 'lucide-react';
+import { ClipboardPaste, Eraser, FileText, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../lib/cn';
 import type { ParseStats } from '../lib/parse';
@@ -13,6 +13,8 @@ interface Props {
   onYearOverride: (year: number | null) => void;
   threshold: number;
   onThreshold: (hours: number) => void;
+  resetNotice?: boolean;
+  onDismissResetNotice?: () => void;
 }
 
 const PLACEHOLDER = `1 AA 142 10NOV JFK LHR 1010A 1010P 777 7.00 0 N  CABIN-BUSINESS
@@ -31,6 +33,8 @@ export function PastePanel({
   onYearOverride,
   threshold,
   onThreshold,
+  resetNotice,
+  onDismissResetNotice,
 }: Props) {
   const [dragging, setDragging] = useState(false);
 
@@ -94,6 +98,24 @@ export function PastePanel({
             </span>
           )}
         </div>
+
+        {resetNotice && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-1.5">
+            <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
+            <p className="flex-1 text-[10.5px] leading-snug text-amber-200/85">
+              Re-read from the text you just edited — the changes you made in the table below were
+              reset. Paste last, then adjust rows.
+            </p>
+            <button
+              type="button"
+              onClick={onDismissResetNotice}
+              aria-label="Dismiss"
+              className="shrink-0 rounded p-0.5 text-amber-300/60 transition-colors hover:text-amber-200"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[10px] uppercase tracking-[0.14em] text-faint">Examples</span>

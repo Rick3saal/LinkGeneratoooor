@@ -201,7 +201,7 @@ export function formatDuration(minutes: number): string {
 /** Compact offset label such as `UTC+5:30` or `UTC−5`. */
 export function formatTimezoneLabel(timeZone: string, instant: number): string {
   const offsetMinutes = zoneOffsetMs(timeZone, instant) / 60_000;
-  const sign = offsetMinutes >= 0 ? '+' : '−';
+  const sign = offsetMinutes < 0 ? '−' : '+';
   const abs = Math.abs(offsetMinutes);
   const hours = Math.floor(abs / 60);
   const minutes = abs % 60;

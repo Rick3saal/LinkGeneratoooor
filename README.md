@@ -30,7 +30,7 @@ No server, no API keys, no account. Everything runs in the browser.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 33 unit + golden + render tests
+npm test           # 38 tests: golden links, parser, airports, render
 npm run build      # static site in dist/
 ```
 
@@ -73,7 +73,11 @@ Anything containing a date token, two airport codes and a departure time. In pra
 | Slice break | a line of `---`, or `new direction` |
 
 Handled gracefully: `¥1` / `+1` overnight markers, 3-digit times (`745P`), `12A`/`12P`, `NOV26`
-and `2026-11-10` dates, `*SS2` sell counters, slash codes, parenthetical notes, blank lines.
+and `2026-11-10` dates, `*SS2` sell counters, slash codes, parenthetical notes, blank lines, and the
+`&lt;--additional--&gt;` variant you get when the itinerary was pasted through chat or email.
+
+Dates and times in the editor are GDS notation — `10NOV`, `10NOV27`, `1945`, `745P` — rather than
+native pickers, so a 24-hour time never turns into `10:10 PM` and `10NOV` never turns into `11/10`.
 
 Anything the parser gets wrong you fix in the table — the parser is a convenience, not a gate.
 

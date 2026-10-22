@@ -41,9 +41,9 @@ export function ItineraryPanel({
         right={
           <>
             {plan.mixedCabin && (
-              <Badge tone="violet" className="hidden sm:inline-flex">
-                mixed cabin
-              </Badge>
+              <span className="hidden sm:block">
+                <Badge tone="violet">mixed cabin</Badge>
+              </span>
             )}
             {hasManualSlices && (
               <IconButton label="Re-detect slices" onClick={onResetSlices}>

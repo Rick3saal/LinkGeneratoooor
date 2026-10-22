@@ -33,6 +33,8 @@ export default function App() {
   const [decodeOpen, setDecodeOpen] = useState(false);
 
   const parsedKey = useRef(`${EXAMPLES[0].text}|null`);
+  const editedSinceParse = useRef(false);
+  const [resetNotice, setResetNotice] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +51,8 @@ export default function App() {
     const key = `${text}|${yearOverride}`;
     if (key === parsedKey.current) return;
     const handle = window.setTimeout(() => {
+      if (editedSinceParse.current && yearOverride === null) setResetNotice(true);
+      editedSinceParse.current = false;
       const result = parseItinerary(text, { yearOverride });
       setSegments(result.segments);
       setParseIssues(result.issues);
@@ -72,7 +76,12 @@ export default function App() {
     (s) => s.newSliceOverride === true || s.newSliceOverride === false,
   );
 
+  const markEdited = () => {
+    editedSinceParse.current = true;
+  };
+
   const patchSegment = (id: string, patch: Partial<Segment>) => {
+    markEdited();
     setSegments((prev) =>
       prev.map((segment) => {
         if (segment.id !== id) return segment;
@@ -90,10 +99,12 @@ export default function App() {
   };
 
   const removeSegment = (id: string) => {
+    markEdited();
     setSegments((prev) => prev.filter((segment) => segment.id !== id));
   };
 
   const moveSegment = (id: string, dir: -1 | 1) => {
+    markEdited();
     setSegments((prev) => {
       const index = prev.findIndex((segment) => segment.id === id);
       const target = index + dir;
@@ -105,6 +116,7 @@ export default function App() {
   };
 
   const addSegment = () => {
+    markEdited();
     setSegments((prev) => {
       const last = prev[prev.length - 1];
       return [
@@ -145,7 +157,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_436px]">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_416px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
           <div className="space-y-4">
             <PastePanel
               text={text}
@@ -155,6 +167,8 @@ export default function App() {
               onYearOverride={setYearOverride}
               threshold={threshold}
               onThreshold={setThreshold}
+              resetNotice={resetNotice}
+              onDismissResetNotice={() => setResetNotice(false)}
             />
 
             {analysis ? (

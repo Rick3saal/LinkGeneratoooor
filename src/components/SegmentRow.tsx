@@ -4,7 +4,8 @@ import { COMMON_TIMEZONES } from '../lib/airports';
 import { ALL_CLASSES, CABINS, CABIN_META } from '../lib/classes';
 import { cn } from '../lib/cn';
 import type { SliceItem } from '../lib/slices';
-import { formatDuration, formatShortDate, formatTimezoneLabel } from '../lib/time';
+import { parseDateToken, parseTimeToken } from '../lib/parse';
+import { formatDuration, formatShortDate, formatTimezoneLabel, isoDate, pad2 } from '../lib/time';
 import type { Segment } from '../lib/types';
 import { AirportInput } from './AirportInput';
 import { IconButton, Toggle } from './ui';
@@ -58,6 +59,98 @@ function InlineInput({
   );
 }
 
+const MONTH_LABELS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** ISO date → `10NOV26`, the way it is written in a GDS. */
+function gdsDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return '';
+  return `${m[3]}${MONTH_LABELS[Number(m[2]) - 1] ?? ''}${m[1].slice(2)}`;
+}
+
+function gdsTime(hhmm: string): string {
+  return hhmm ? hhmm.replace(':', '') : '';
+}
+
+/**
+ * A text field that reads and writes GDS notation (`10NOV`, `10NOV26`, `2026-11-10`
+ * for dates; `2210`, `10:10 PM`, `1010P` for times). The native date/time inputs
+ * render in the browser's own locale — this keeps 24-hour times and unambiguous
+ * dates no matter where the agent sits.
+ */
+function GdsField({
+  value,
+  display,
+  parse,
+  onCommit,
+  width,
+  ariaLabel,
+  title,
+  invalid,
+}: {
+  value: string;
+  display: string;
+  parse: (draft: string) => string | null;
+  onCommit: (next: string) => void;
+  width: string;
+  ariaLabel: string;
+  title?: string;
+  invalid?: boolean;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const draftValid = draft === null || parse(draft) !== null;
+  const shown = draft ?? display;
+
+  const commit = () => {
+    if (draft === null) return;
+    const parsed = parse(draft);
+    if (parsed !== null && parsed !== value) onCommit(parsed);
+    setDraft(null);
+  };
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      title={title}
+      value={shown}
+      spellCheck={false}
+      autoComplete="off"
+      onFocus={() => setDraft(display)}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          commit();
+          (event.target as HTMLInputElement).blur();
+        } else if (event.key === 'Escape') {
+          setDraft(null);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
+      className={cn(
+        'rounded-md border border-transparent bg-transparent px-1.5 py-[3px] text-center',
+        'font-mono text-[11.5px] transition-colors hover:border-line-2 hover:bg-panel-3',
+        'focus:border-gold-400/50 focus:bg-panel-3 focus:outline-none',
+        invalid || !draftValid ? 'text-amber-300' : 'text-muted hover:text-ink focus:text-ink',
+      )}
+      style={{ width }}
+    />
+  );
+}
+
+function parseDateInput(draft: string): string | null {
+  const token = parseDateToken(draft.replace(/\s+/g, '').toUpperCase());
+  if (!token) return null;
+  const year = token.year ?? new Date().getUTCFullYear() + (token.month < new Date().getUTCMonth() + 1 ? 1 : 0);
+  return isoDate(year, token.month, token.day);
+}
+
+function parseTimeInput(draft: string): string | null {
+  const token = parseTimeToken(draft.trim().toUpperCase());
+  if (!token) return null;
+  return `${pad2(token.hour)}:${pad2(token.minute)}`;
+}
+
 export function SegmentRow({
   item,
   sliceIndex,
@@ -94,7 +187,7 @@ export function SegmentRow({
 
       <div className="min-w-0 flex-1 px-1.5 py-1.5">
         {/* main line */}
-        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
           <InlineInput
             ariaLabel="Airline code"
             value={s.carrier}
@@ -165,7 +258,7 @@ export function SegmentRow({
             />
           </div>
 
-          <div className="mx-0.5 flex items-center gap-0.5 rounded-lg border border-line/70 bg-black/20 px-0.5">
+          <div className="mx-0.5 flex w-full items-center justify-center gap-0.5 rounded-lg border border-line/70 bg-black/20 px-0.5 sm:w-auto sm:justify-start">
             <AirportInput
               label="Origin"
               value={s.origin}
@@ -181,7 +274,7 @@ export function SegmentRow({
             />
           </div>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto hidden items-center gap-1 sm:flex">
             {offsetLabel ? (
               <span
                 title={`${tz} · ${offsetLabel}`}
@@ -211,37 +304,39 @@ export function SegmentRow({
 
         {/* secondary line */}
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-1 pl-0.5">
-          <InlineInput
+          <GdsField
             ariaLabel="Departure date"
-            type="date"
+            title={`${formatShortDate(s.depDate)} — type 10NOV, 10NOV27 or 2026-11-10`}
             value={s.depDate}
-            width="124px"
-            mono
-            onChange={(value) => onChange({ depDate: value })}
+            display={gdsDate(s.depDate)}
+            parse={(draft) => parseDateInput(draft)}
+            onCommit={(next) => onChange({ depDate: next })}
+            width="74px"
           />
-          <InlineInput
+          <GdsField
             ariaLabel="Departure time"
-            type="time"
+            title={`${s.depTime || '—'} local — type 2210, 10:10 or 1010P`}
             value={s.depTime}
-            width="83px"
-            mono
-            onChange={(value) => onChange({ depTime: value })}
+            display={gdsTime(s.depTime)}
+            parse={(draft) => parseTimeInput(draft)}
+            onCommit={(next) => onChange({ depTime: next })}
+            width="44px"
           />
           <span className="text-[10px] text-faint">→</span>
-          <InlineInput
+          <GdsField
             ariaLabel="Arrival time"
-            type="time"
+            title="Local arrival time — type 0710, 07:10 or 710A"
             value={s.arrTime}
-            width="83px"
-            mono
-            onChange={(value) => onChange({ arrTime: value })}
+            display={gdsTime(s.arrTime)}
+            parse={(draft) => parseTimeInput(draft)}
+            onCommit={(next) => onChange({ arrTime: next })}
+            width="44px"
           />
           {s.arrDayOffset > 0 && (
             <span className="rounded bg-panel-3 px-1 font-mono text-[10px] text-faint">
               +{s.arrDayOffset}
             </span>
           )}
-          <span className="ml-1 text-[10.5px] text-faint">{formatShortDate(s.depDate)}</span>
           {durationLabel && (
             <span className="text-[10.5px] text-faint/80">· {durationLabel}</span>
           )}
