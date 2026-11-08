@@ -1,3 +1,4 @@
+import { referenceAlternatives } from '../lib/referenceAlternatives';
 import { describe, expect, it } from 'vitest';
 import { decodeIten, extractIten, passengerCode } from '../lib/aaLink';
 import { analyze } from '../lib/analyze';
@@ -218,5 +219,54 @@ describe('Sabre *IA layouts', () => {
       'BA398:L',
     ]);
     expect(parsed.segments[4].arrDayOffset).toBe(1);
+  });
+});
+
+
+describe('supplied reference alternatives for the four-flight IB itinerary', () => {
+  it('automatically builds all three complete reference URLs without changing the source', () => {
+    const { segments } = parseItinerary(FOUR_FLIGHT_ITINERARY, { now: NOW });
+    const original = JSON.stringify(segments);
+    const alternatives = referenceAlternatives(segments, DEFAULT_BUILD_OPTIONS, lookup);
+    expect(alternatives.map(a => a.label)).toEqual(['BA 178 + BA 398', 'BA 1511 + BA 396', 'BA 112 + BA 396']);
+    const times = [
+      ['178', '1808913000000', '398', '1809019200000'],
+      ['1511', '1808950800000', '396', '1808985900000'],
+      ['112', '1808951400000', '396', '1808985900000'],
+    ];
+    alternatives.forEach((alternative, i) => {
+      const [flight, departure, onward, onwardDeparture] = times[i];
+      const expected = 'DIRECT,0,US,multi,4,A1S0C0I0Y0L0,0,JTR,0,LHR,0,0,0,0,0,0,0,0.00,1,' +
+        '#JTR|LHR|0|0|1806925500000#LHR|SFO|0|0|1807004700000' +
+        `#JFK|LHR|0|0|${departure}#LHR|CAI|0|0|${onwardDeparture},` +
+        '#AA|7048|J|JTR|LHR|1806925500000|0#AA|6996|I|LHR|SFO|1807004700000|1' +
+        `#BA|${flight}|L|JFK|LHR|${departure}|2#BA|${onward}|L|LHR|CAI|${onwardDeparture}|3`;
+      expect(alternative.url).toBe('https://www.aa.com/goto/metasearch?ITEN=' + encodeURIComponent(expected));
+      expect(alternative.summary).toContain('2027-04-29');
+    });
+    expect(JSON.stringify(segments)).toBe(original);
+  });
+
+  it('rebuilds references with the current passenger settings', () => {
+    const { segments } = parseItinerary(FOUR_FLIGHT_ITINERARY, { now: NOW });
+    const options = { ...DEFAULT_BUILD_OPTIONS, passengers: { ...DEFAULT_BUILD_OPTIONS.passengers, adults: 2 } };
+    expect(referenceAlternatives(segments, options, lookup)).toHaveLength(3);
+    for (const a of referenceAlternatives(segments, options, lookup)) {
+      expect(decodeURIComponent(a.url)).toContain('A2S0C0I0Y0L0');
+    }
+    expect(referenceAlternatives(segments, { ...options, passengers: { ...options.passengers, adults: 10 } }, lookup)).toEqual([]);
+  });
+
+  it('never extrapolates reference schedules to unrelated dates, flights, classes, or timezones', () => {
+    const { segments } = parseItinerary(FOUR_FLIGHT_ITINERARY, { now: NOW });
+    for (const patch of [
+      { depDate: '2028-04-28' }, { depTime: '08:00' }, { flightNumber: '1234' },
+      { bookingClass: 'J' }, { tzOverride: 'UTC' }, { carrier: 'AA' },
+    ]) {
+      const changed = segments.map((s, i) => i === 2 ? { ...s, ...patch } : s);
+      expect(referenceAlternatives(changed, DEFAULT_BUILD_OPTIONS, lookup)).toEqual([]);
+    }
+    expect(referenceAlternatives([], DEFAULT_BUILD_OPTIONS, lookup)).toEqual([]);
+    expect(referenceAlternatives(segments, DEFAULT_BUILD_OPTIONS, () => undefined)).toEqual([]);
   });
 });

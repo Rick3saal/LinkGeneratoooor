@@ -15,6 +15,7 @@ import { oneSlicePerSegment } from './lib/slices';
 import { cabinForClass } from './lib/classes';
 import { makeSegment, parseItinerary, type ParseStats } from './lib/parse';
 import { EXAMPLES } from './lib/samples';
+import { referenceAlternatives } from './lib/referenceAlternatives';
 import type { LinkAlternativeDraft, SavedLinkAlternative } from './lib/alternatives';
 import { DEFAULT_BUILD_OPTIONS, type BuildOptions, type Issue, type Segment } from './lib/types';
 
@@ -74,6 +75,11 @@ export default function App() {
       now: new Date(),
     });
   }, [segments, options, threshold, parseIssues, dbReady]);
+
+  const suggestedAlternatives = useMemo(
+    () => dbReady ? referenceAlternatives(segments, options, lookupAirport) : [],
+    [segments, options, dbReady],
+  );
 
   const hasManualSlices = segments.some(
     (s) => s.newSliceOverride === true || s.newSliceOverride === false,
@@ -218,6 +224,7 @@ export default function App() {
                   analysis={analysis}
                   options={options}
                   onOptionsChange={patchOptions}
+                  suggestedAlternatives={suggestedAlternatives}
                   savedAlternatives={savedAlternatives}
                   onSaveAlternative={saveAlternative}
                   onRemoveAlternative={removeAlternative}
