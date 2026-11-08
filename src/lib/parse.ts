@@ -450,6 +450,23 @@ export function applyOperatedBy(segment: Segment, op: OperatedBy): void {
   segment.operatedBy = op.name;
   if (op.code) segment.operatingCarrier = op.code;
   if (op.flight) segment.operatingFlight = op.flight;
+
+  // A partner-marketed codeshare (e.g. IB 3564) whose footnote names the
+  // operating flight (“OPERATED BY BA 178”) is handed off as that metal by
+  // default: aa.com does not carry the partner's codeshare number, but it does
+  // carry the operating flight. AA-marketed flights keep the AA number, which is
+  // what aa.com wants for an AA codeshare.
+  const marketing = segment.carrier?.toUpperCase();
+  if (
+    op.flight &&
+    op.code &&
+    marketing &&
+    marketing !== 'AA' &&
+    marketing !== op.code &&
+    segment.sendAs === undefined
+  ) {
+    segment.sendAs = 'operating';
+  }
 }
 
 /** True when the line carries a date token, i.e. it looks like a flight row. */

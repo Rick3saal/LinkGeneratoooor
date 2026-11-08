@@ -154,9 +154,9 @@ export function PastePanel({
               value={threshold}
               onChange={(event) => onThreshold(Number(event.target.value))}
               className="h-6 rounded-md border border-line bg-panel-2 px-1 text-[10.5px] text-muted [color-scheme:dark] hover:border-line-2 focus:outline-none"
-              title="A stay longer than this starts a new slice (a new 'direction' in AA's envelope)."
+              title="A connection longer than this is a stopover and starts a new slice (a new 'direction' in AA's envelope)."
             >
-              {[6, 12, 24, 48].map((hours) => (
+              {[4, 6, 12, 24, 48].map((hours) => (
                 <option key={hours} value={hours}>
                   {hours}h
                 </option>

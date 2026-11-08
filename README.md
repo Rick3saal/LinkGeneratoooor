@@ -47,8 +47,8 @@ uses `base: './'`, so a sub-path deployment works without changes.
 2. **Pins every departure to UTC** using that airport's own IANA timezone (DST included). This one
    millisecond timestamp per segment is what makes aa.com land on the exact flight. Nothing else
    identifies it.
-3. **Groups the segments into slices** (“directions”). A stay longer than 24 h, a different airport,
-   or a return to where the slice began starts a new slice. Every break can be overridden by hand.
+3. **Groups the segments into slices** (“directions”). A connection longer than 4 h (a stopover), a
+   different airport, or a return to where the slice began starts a new slice. Every break can be overridden by hand.
 4. **Builds the envelope** — 21 comma-separated fields, percent-encoded — and hands you the link,
    a copy button, and a field-by-field decoder of what you are about to send.
 
