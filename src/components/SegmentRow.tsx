@@ -1,4 +1,4 @@
-import { ChevronDown, MoveDown, MoveUp, Trash2, TriangleAlert } from 'lucide-react';
+import { ChevronDown, MoveDown, MoveUp, Search, Trash2, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { COMMON_TIMEZONES } from '../lib/airports';
 import { ALL_CLASSES, CABINS, CABIN_META } from '../lib/classes';
@@ -9,6 +9,7 @@ import { parseDateToken, parseTimeToken } from '../lib/parse';
 import { formatDuration, formatShortDate, formatTimezoneLabel, isoDate, pad2 } from '../lib/time';
 import type { Segment } from '../lib/types';
 import { AirportInput } from './AirportInput';
+import { googleFlightsSearchUrl } from '../lib/scheduleSearch';
 import { IconButton, Toggle } from './ui';
 
 export const SLICE_COLORS = ['#f7c948', '#60a5fa', '#a78bfa', '#34d399', '#fb7185'];
@@ -182,6 +183,7 @@ export function SegmentRow({
   const needsOperatingNumber = isCodeshare && s.carrier.toUpperCase() !== 'AA' && !s.operatingFlight;
   const sendingOperating = s.sendAs === 'operating' && !!s.operatingFlight;
   const canSendOperating = !!opCode && !!s.operatingFlight;
+  const scheduleSearchUrl = googleFlightsSearchUrl(s);
   const opLabel = opCode
     ? `${opCode} (${carrierName(opCode)})`
     : (s.operatedBy ?? '').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
@@ -490,6 +492,17 @@ export function SegmentRow({
                   <span className="ml-auto font-mono text-[10px] text-faint">
                     {s.carrier} {s.flightNumber}
                   </span>
+                  {scheduleSearchUrl && (
+                    <a
+                      href={scheduleSearchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-sky-500/25 bg-sky-500/[0.07] px-2 text-[10.5px] text-sky-200 transition-colors hover:border-sky-400/40 hover:bg-sky-500/[0.12]"
+                    >
+                      <Search className="h-3 w-3" />
+                      Search {opCode || s.carrier} schedules
+                    </a>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-1.5">
@@ -553,6 +566,13 @@ export function SegmentRow({
                   {isCodeshare ? ` on ${opCode}` : ''}) is usually invisible to it. Send the
                   operating number, or the AA codeshare, when the link comes back empty.
                 </p>
+                {scheduleSearchUrl && (
+                  <p className="text-[9.5px] leading-snug text-sky-200/65">
+                    Google Flights opens with this route, date and operator. Results are not
+                    imported; enter the flight, local times and booking class above, then save the
+                    resulting AA link as an alternative.
+                  </p>
+                )}
               </div>
             )}
 

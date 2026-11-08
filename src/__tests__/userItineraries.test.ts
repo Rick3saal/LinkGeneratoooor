@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodeIten, extractIten, passengerCode } from '../lib/aaLink';
 import { analyze } from '../lib/analyze';
 import { parseItinerary } from '../lib/parse';
+import { oneSlicePerSegment } from '../lib/slices';
 import { DEFAULT_BUILD_OPTIONS, type BuildOptions } from '../lib/types';
 import { lookup, NOW } from './fixtures';
 
@@ -50,6 +51,25 @@ const ITINERARY_B = `1 AA 7048 5APR JTR LHR 245P 455P 320 4.10 0 N  CABIN-ECONOM
 4 IB 3564O 30APR
 5 IB 3844O 30APR`;
 
+/** The user's four-flight example: the final short connection must be splittable. */
+const FOUR_FLIGHT_ITINERARY = `1 AA 7048 5APR JTR LHR 245P 455P 320 4.10 0 N  CABIN-BUSINESS
+*JTR-LHR OPERATED BY BRITISH AIRWAYS
+2 AA 6996 6APR LHR SFO 1045A 150P 380 11.05 0 N  CABIN-BUSINESS
+*LHR-SFO OPERATED BY BRITISH AIRWAYS
+3 IB 3564 28APR JFK LHR 750A 745P 777 6.55 0 N  CABIN-ECONOMY
+*JFK-LHR OPERATED BY BRITISH AIRWAYS
+4 IB 3844 28APR LHR CAI 915P 310A¥1 32N 4.55 0 N  CABIN-ECONOMY
+*LHR-CAI OPERATED BY BRITISH AIRWAYS
+
+&lt;--additional--&gt;
+1 AA 7048J 5APR
+2 AA 6996I 6APR
+3 IB 3564O 28APR
+4 IB 3844O 28APR`;
+
+const FOUR_FLIGHT_SPLIT_URL =
+  'https://www.aa.com/goto/metasearch?ITEN=DIRECT%2C0%2CUS%2Cmulti%2C4%2CA1S0C0I0Y0L0%2C0%2CJTR%2C0%2CLHR%2C0%2C0%2C0%2C0%2C0%2C0%2C0%2C0.00%2C1%2C%23JTR%7CLHR%7C0%7C0%7C1806925500000%23LHR%7CSFO%7C0%7C0%7C1807004700000%23JFK%7CLHR%7C0%7C0%7C1808913000000%23LHR%7CCAI%7C0%7C0%7C1808943300000%2C%23AA%7C7048%7CJ%7CJTR%7CLHR%7C1806925500000%7C0%23AA%7C6996%7CI%7CLHR%7CSFO%7C1807004700000%7C1%23IB%7C3564%7CO%7CJFK%7CLHR%7C1808913000000%7C2%23IB%7C3844%7CO%7CLHR%7CCAI%7C1808943300000%7C3';
+
 /** The 2-adult link the user confirmed as correct for itinerary A. */
 const CONFIRMED_TWO_ADULTS =
   'https://www.aa.com/goto/metasearch?ITEN=DIRECT%2C0%2CUS%2Cmulti%2C4%2CA2S0C0I0Y0L0%2C0%2CJTR%2C0%2CLHR%2C0%2C0%2C0%2C0%2C0%2C0%2C0%2C0.00%2C1%2C%23JTR%7CLHR%7C0%7C0%7C1806756900000%23LHR%7CSFO%7C0%7C0%7C1806831900000%23DFW%7CCUN%7C0%7C0%7C1806964380000%23JFK%7CLHR%7C0%7C0%7C1808913000000%23LHR%7CCAI%7C0%7C0%7C1809019200000%2C%23AA%7C7048%7CD%7CJTR%7CLHR%7C1806756900000%7C0%23AA%7C6996%7CI%7CLHR%7CSFO%7C1806831900000%7C1%23AA%7C2650%7CI%7CDFW%7CCUN%7C1806964380000%7C2%23BA%7C178%7CL%7CJFK%7CLHR%7C1808913000000%7C3%23BA%7C398%7CL%7CLHR%7CCAI%7C1809019200000%7C4';
@@ -97,6 +117,34 @@ describe('confirmed itinerary A', () => {
       'DFWCUN',
       'JFKLHR',
       'LHRCAI',
+    ]);
+  });
+});
+
+describe('one AA city pair per flight', () => {
+  it('builds the requested four-slice link instead of merging a short connection', () => {
+    const parsed = parseItinerary(FOUR_FLIGHT_ITINERARY, { now: NOW });
+    const automatic = analyze(parsed.segments, DEFAULT_BUILD_OPTIONS, {
+      lookup,
+      thresholdHours: 4,
+      parseIssues: parsed.issues,
+      now: NOW,
+    });
+
+    // Auto mode correctly sees the final 90-minute LHR connection as one route.
+    expect(automatic.plan.slices).toHaveLength(3);
+
+    // The explicit per-flight mode matches the user's requested AA envelope.
+    const split = analyze(oneSlicePerSegment(parsed.segments), DEFAULT_BUILD_OPTIONS, {
+      lookup,
+      thresholdHours: 4,
+      parseIssues: parsed.issues,
+      now: NOW,
+    });
+    expect(split.plan.slices).toHaveLength(4);
+    expect(split.link.url).toBe(FOUR_FLIGHT_SPLIT_URL);
+    expect(decodeIten(split.link.iten).segments.map((segment) => segment.sliceIndex)).toEqual([
+      0, 1, 2, 3,
     ]);
   });
 });

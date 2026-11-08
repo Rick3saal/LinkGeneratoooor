@@ -15,6 +15,7 @@ interface Props {
   onMove: (id: string, dir: -1 | 1) => void;
   onAdd: () => void;
   onResetSlices: () => void;
+  onSplitEveryFlight: () => void;
 }
 
 export function ItineraryPanel({
@@ -25,6 +26,7 @@ export function ItineraryPanel({
   onMove,
   onAdd,
   onResetSlices,
+  onSplitEveryFlight,
 }: Props) {
   const total = plan.items.length;
   const cabinCounts = new Map<string, number>();
@@ -56,6 +58,23 @@ export function ItineraryPanel({
           </>
         }
       />
+
+      {total > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 bg-panel-2/40 px-4 py-2">
+          <p className="text-[10.5px] leading-snug text-faint">
+            Short connections are grouped automatically. Need one AA city pair per flight?
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={onSplitEveryFlight}
+            disabled={plan.slices.length === total}
+            title="Make every flight row its own AA multi-city slice."
+          >
+            Separate every flight
+          </Button>
+        </div>
+      )}
 
       <div className="px-3 pb-3 pt-2">
         {total === 0 ? (
