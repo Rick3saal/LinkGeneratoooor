@@ -52,7 +52,10 @@ exposed nowhere in the UI.
 
 One record per direction, concatenated with no separator. A new slice (direction) starts at a
 stopover: a connection longer than 4 hours, a change of airport, or a return to where the slice
-began. Connections of 4 hours or less stay in the same slice. With this threshold the
+began. Connections of 4 hours or less stay in the same slice by default. The itinerary editor's
+**Separate every flight** control overrides that rule and gives each row its own city pair, which is
+useful when a short physical connection is meant to be two separate AA multi-city legs. Individual
+breaks can still be toggled in a row's details. With the default threshold this
 JTR–LHR–SFO–DFW–CUN–JFK–LHR–CAI itinerary reproduces the 2-adult link that was confirmed to work,
 byte for byte (see `userItineraries.test.ts`).
 
@@ -174,6 +177,11 @@ in field 20. That is why the tool keeps both when the GDS gives both:
 
 Nothing else in the envelope changes when you swap: the timestamp, the class, the airports and
 the slice index all stay as they were.
+
+When an operator is known but its prime flight number is not, the editor can open a prefilled
+Google Flights search for that carrier, route and date. The static app does not scrape those
+results or have a live schedule API; once an alternative is selected, update the segment's flight,
+local time/date and class, then save the resulting aa.com link as an alternative.
 
 ## 8. Reference links (golden)
 

@@ -30,7 +30,7 @@ No server, no API keys, no account. Everything runs in the browser.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 66 tests: golden links, parser, passengers, codeshares, render
+npm test           # parser, golden links, passengers, codeshares, alternatives, render
 npm run build      # static site in dist/
 ```
 
@@ -48,7 +48,8 @@ uses `base: './'`, so a sub-path deployment works without changes.
    millisecond timestamp per segment is what makes aa.com land on the exact flight. Nothing else
    identifies it.
 3. **Groups the segments into slices** (“directions”). A connection longer than 4 h (a stopover), a
-   different airport, or a return to where the slice began starts a new slice. Every break can be overridden by hand.
+   different airport, or a return to where the slice began starts a new slice. Every break can be
+   overridden by hand, or **Separate every flight** makes each row its own AA city pair.
 4. **Builds the envelope** — 21 comma-separated fields, percent-encoded — and hands you the link,
    a copy button, and a field-by-field decoder of what you are about to send.
 
@@ -155,6 +156,12 @@ link. Open the row → **Send the operating flight**, type the operating carrier
 number (or the AA codeshare) and the envelope carries that instead — same timestamp, same class,
 same slice, only field 20's carrier and flight change.
 
+If the pasted note names the operator but not its flight number, the row also offers **Search
+schedules**. It opens a Google Flights search prefilled with the operator, route and date. The app
+is static and has no live inventory API, so search results are not scraped or imported: edit the
+flight number, local date/time and booking class from the result, then save that generated AA link
+in **Alternative links** before trying another option. You can keep several variants in the panel.
+
 ---
 
 ## Honest limits
@@ -184,6 +191,8 @@ src/
     checks.ts     field-level and commercial checks
     analyze.ts    one pass: plan → validate → link
     carriers.ts   carrier directory: names, “will aa.com price it?”, OPERATED BY → code
+    scheduleSearch.ts Google Flights query for a segment's operating carrier + route/date
+    alternatives.ts saved link snapshots and flight summaries
     airports.ts   lazy airport/timezone table + ranked search
     time.ts       Intl-based IANA math (wall clock → UTC, DST safe)
   components/     UI (paste, itinerary editor, link panel, inspector…)
@@ -220,6 +229,8 @@ src/__tests__/aaLink.test.ts    three golden links, byte-exact, plus decoder + v
 src/__tests__/passengers.test.ts  passenger mix → field 5, incl. a recorded two-adult link
 src/__tests__/codeshare.test.ts   OPERATED BY grammar, codeshare checks, operating-flight swap
 src/__tests__/parse.test.ts     token grammar, additional block, year inference, slices, DST
+src/__tests__/scheduleSearch.test.ts operating-carrier Google Flights search queries
+src/__tests__/userItineraries.test.ts confirmed links, per-flight slices, codeshares, passengers
 src/__tests__/render.test.tsx   server-render smoke tests for every panel
 ```
 

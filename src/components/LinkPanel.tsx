@@ -1,7 +1,8 @@
-import { ExternalLink, Settings2, ShieldCheck, TriangleAlert, Users } from 'lucide-react';
+import { ExternalLink, Save, Settings2, ShieldCheck, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useState } from 'react';
 import { AA_METASEARCH_BASE, passengerCode } from '../lib/aaLink';
 import type { Analysis } from '../lib/analyze';
+import { summarizeAlternative, type LinkAlternativeDraft, type SavedLinkAlternative } from '../lib/alternatives';
 import { cn } from '../lib/cn';
 import type { BuildOptions, PassengerCounts } from '../lib/types';
 import { Badge, Button, Card, CardHead, CopyButton, IconButton } from './ui';
@@ -10,6 +11,9 @@ interface Props {
   analysis: Analysis;
   options: BuildOptions;
   onOptionsChange: (patch: Partial<BuildOptions>) => void;
+  savedAlternatives: SavedLinkAlternative[];
+  onSaveAlternative: (draft: LinkAlternativeDraft) => void;
+  onRemoveAlternative: (id: string) => void;
 }
 
 /** The six passenger buckets AA's envelope carries, in the order it carries them. */
@@ -70,8 +74,16 @@ function Counter({
   );
 }
 
-export function LinkPanel({ analysis, options, onOptionsChange }: Props) {
+export function LinkPanel({
+  analysis,
+  options,
+  onOptionsChange,
+  savedAlternatives,
+  onSaveAlternative,
+  onRemoveAlternative,
+}: Props) {
   const [showOptions, setShowOptions] = useState(false);
+  const [alternativeName, setAlternativeName] = useState('');
   const { link, counts, canBuild } = analysis;
   const pax = options.passengers;
 
@@ -79,6 +91,17 @@ export function LinkPanel({ analysis, options, onOptionsChange }: Props) {
     onOptionsChange({ passengers: { ...pax, [key]: value } });
 
   const totalPax = Object.values(pax).reduce((a, b) => a + b, 0);
+  const currentSummary = summarizeAlternative(analysis.plan.items);
+
+  const saveCurrentAlternative = () => {
+    if (!canBuild || !link.url) return;
+    onSaveAlternative({
+      label: alternativeName.trim() || `Option ${savedAlternatives.length + 1}`,
+      summary: currentSummary,
+      url: link.url,
+    });
+    setAlternativeName('');
+  };
 
   const open = () => {
     if (!link.url) return;
@@ -188,6 +211,82 @@ export function LinkPanel({ analysis, options, onOptionsChange }: Props) {
             <ExternalLink className="h-3.5 w-3.5" /> Open on aa.com
           </Button>
           <CopyButton value={link.url} disabled={!canBuild} className="shrink-0" />
+        </div>
+
+        <div className="rounded-lg border border-line bg-panel-2/50 p-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-medium text-ink">Alternative links</p>
+              <p className="mt-0.5 text-[9.5px] leading-snug text-faint">
+                Save each edited flight combination to compare and reopen during this session.
+              </p>
+            </div>
+            <span className="rounded-full border border-line bg-panel-3 px-1.5 py-0.5 font-mono text-[9.5px] text-muted">
+              {savedAlternatives.length}
+            </span>
+          </div>
+
+          <div className="mt-2 flex gap-1.5">
+            <input
+              aria-label="Alternative link name"
+              value={alternativeName}
+              onChange={(event) => setAlternativeName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') saveCurrentAlternative();
+              }}
+              placeholder={`Option ${savedAlternatives.length + 1} (e.g. BA 178 + BA 398)`}
+              className="h-7 min-w-0 flex-1 rounded-md border border-line bg-panel-3 px-2 text-[10.5px] text-ink placeholder:text-faint focus:border-gold-400/50 focus:outline-none"
+            />
+            <Button size="sm" onClick={saveCurrentAlternative} disabled={!canBuild}>
+              <Save className="h-3 w-3" /> Save link
+            </Button>
+          </div>
+
+          {savedAlternatives.length ? (
+            <div className="mt-2 space-y-1.5">
+              {savedAlternatives.map((alternative) => (
+                <div
+                  key={alternative.id}
+                  className="flex items-center gap-2 rounded-md border border-line/80 bg-black/20 px-2 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10.5px] font-medium text-ink" title={alternative.label}>
+                      {alternative.label}
+                    </p>
+                    <p className="truncate font-mono text-[9px] text-faint" title={alternative.summary}>
+                      {alternative.summary}
+                    </p>
+                  </div>
+                  <a
+                    href={alternative.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded border border-line-2 px-1.5 text-[9.5px] text-muted hover:bg-panel-3 hover:text-ink"
+                  >
+                    <ExternalLink className="h-2.5 w-2.5" /> Open
+                  </a>
+                  <CopyButton
+                    value={alternative.url}
+                    label="Copy"
+                    variant="ghost"
+                    className="h-6 shrink-0 px-1.5 text-[9.5px]"
+                  />
+                  <IconButton
+                    label={`Remove ${alternative.label}`}
+                    onClick={() => onRemoveAlternative(alternative.id)}
+                    className="h-6 w-6 shrink-0"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </IconButton>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-[9.5px] leading-snug text-faint">
+              No alternatives saved yet. Search an operating-carrier flight from a row, edit its
+              number/time/class, then save the new AA link here.
+            </p>
+          )}
         </div>
 
         {showOptions && (

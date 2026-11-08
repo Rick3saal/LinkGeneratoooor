@@ -54,18 +54,24 @@ describe('components render', () => {
           onMove={noop}
           onAdd={noop}
           onResetSlices={noop}
+          onSplitEveryFlight={noop}
         />
         <ChecksPanel issues={analysis.issues} segments={parsed.segments} />
         <LinkPanel
           analysis={analysis}
           options={options}
           onOptionsChange={noop}
+          savedAlternatives={[]}
+          onSaveAlternative={noop}
+          onRemoveAlternative={noop}
         />
         <Inspector link={analysis.link} />
       </>,
     );
 
     expect(html).toContain('The itinerary');
+    expect(html).toContain('Separate every flight');
+    expect(html).toContain('Alternative links');
     expect(html).toContain('Open on aa.com');
     expect(html).toContain('Inside the link');
     expect(html).toContain('JFK');
@@ -79,6 +85,9 @@ describe('components render', () => {
         analysis={analysis}
         options={{ ...options, passengers: { ...options.passengers, adults: 2 } }}
         onOptionsChange={noop}
+        savedAlternatives={[]}
+        onSaveAlternative={noop}
+        onRemoveAlternative={noop}
       />,
     );
 
@@ -111,11 +120,14 @@ describe('components render', () => {
         onMove={noop}
         onAdd={noop}
         onResetSlices={noop}
+        onSplitEveryFlight={noop}
       />,
     );
 
-    // The footnote now resolves to a code instead of being dropped.
+    // The footnote resolves to a code and the row offers a prefilled live search.
     expect(html).toContain('op. BA (British Airways)');
+    expect(html).toContain('Search BA schedules');
+    expect(html).toContain('google.com/travel/flights?q=Flights');
   });
 
   it('renders an empty itinerary without crashing', () => {
@@ -130,6 +142,7 @@ describe('components render', () => {
         onMove={noop}
         onAdd={noop}
         onResetSlices={noop}
+        onSplitEveryFlight={noop}
       />,
     );
     expect(html).toContain('No segments yet');

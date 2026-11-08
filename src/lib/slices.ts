@@ -35,6 +35,18 @@ export interface SliceOptions {
 
 const FALLBACK_FLIGHT_MINUTES = 180;
 
+/**
+ * Make every flight row its own AA multi-city leg. The automatic rule treats a
+ * short, same-airport connection as one direction; some itineraries need each
+ * flight represented as a separate city pair instead.
+ */
+export function oneSlicePerSegment(segments: Segment[]): Segment[] {
+  return segments.map((segment, index) => ({
+    ...segment,
+    newSliceOverride: index === 0 ? null : true,
+  }));
+}
+
 export function resolveTimezone(segment: Segment, lookup: AirportLookup): string | null {
   if (segment.tzOverride) return segment.tzOverride;
   const info = lookup(segment.origin);

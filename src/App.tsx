@@ -11,9 +11,11 @@ import { HowItWorks } from './components/HowItWorks';
 import { Button, Card, CopyButton } from './components/ui';
 import { loadAirportTable, lookupAirport } from './lib/airports';
 import { analyze } from './lib/analyze';
+import { oneSlicePerSegment } from './lib/slices';
 import { cabinForClass } from './lib/classes';
 import { makeSegment, parseItinerary, type ParseStats } from './lib/parse';
 import { EXAMPLES } from './lib/samples';
+import type { LinkAlternativeDraft, SavedLinkAlternative } from './lib/alternatives';
 import { DEFAULT_BUILD_OPTIONS, type BuildOptions, type Issue, type Segment } from './lib/types';
 
 const SLICE_THRESHOLD_HOURS = 4;
@@ -26,6 +28,7 @@ export default function App() {
   const [parseIssues, setParseIssues] = useState<Issue[]>(bootstrap.issues);
   const [stats, setStats] = useState<ParseStats | null>(bootstrap.stats);
   const [options, setOptions] = useState<BuildOptions>(DEFAULT_BUILD_OPTIONS);
+  const [savedAlternatives, setSavedAlternatives] = useState<SavedLinkAlternative[]>([]);
   const [threshold, setThreshold] = useState(SLICE_THRESHOLD_HOURS);
   const [yearOverride, setYearOverride] = useState<number | null>(null);
   const [dbReady, setDbReady] = useState(false);
@@ -136,6 +139,25 @@ export default function App() {
     setSegments((prev) => prev.map((segment) => ({ ...segment, newSliceOverride: null })));
   };
 
+  const splitEveryFlight = () => {
+    markEdited();
+    setSegments((prev) => oneSlicePerSegment(prev));
+  };
+
+  const saveAlternative = (draft: LinkAlternativeDraft) => {
+    setSavedAlternatives((prev) => [
+      {
+        ...draft,
+        id: `alternative-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      },
+      ...prev,
+    ]);
+  };
+
+  const removeAlternative = (id: string) => {
+    setSavedAlternatives((prev) => prev.filter((alternative) => alternative.id !== id));
+  };
+
   const patchOptions = (patch: Partial<BuildOptions>) =>
     setOptions((prev) => ({ ...prev, ...patch }));
 
@@ -180,6 +202,7 @@ export default function App() {
                 onMove={moveSegment}
                 onAdd={addSegment}
                 onResetSlices={resetSlices}
+                onSplitEveryFlight={splitEveryFlight}
               />
             ) : (
               <LoadingCard lines={3} />
@@ -191,7 +214,14 @@ export default function App() {
           <aside className="space-y-4">
             {analysis && link ? (
               <>
-                <LinkPanel analysis={analysis} options={options} onOptionsChange={patchOptions} />
+                <LinkPanel
+                  analysis={analysis}
+                  options={options}
+                  onOptionsChange={patchOptions}
+                  savedAlternatives={savedAlternatives}
+                  onSaveAlternative={saveAlternative}
+                  onRemoveAlternative={removeAlternative}
+                />
                 <Inspector link={link} />
               </>
             ) : (
