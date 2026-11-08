@@ -16,7 +16,7 @@ import { makeSegment, parseItinerary, type ParseStats } from './lib/parse';
 import { EXAMPLES } from './lib/samples';
 import { DEFAULT_BUILD_OPTIONS, type BuildOptions, type Issue, type Segment } from './lib/types';
 
-const SLICE_THRESHOLD_HOURS = 24;
+const SLICE_THRESHOLD_HOURS = 4;
 
 export default function App() {
   const bootstrap = useMemo(() => parseItinerary(EXAMPLES[0].text), []);

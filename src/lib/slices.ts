@@ -29,7 +29,7 @@ export interface SlicePlan {
 
 export interface SliceOptions {
   lookup: AirportLookup;
-  /** A stay longer than this starts a new slice. */
+  /** A connection longer than this (a stopover) starts a new slice. */
   thresholdHours?: number;
 }
 
@@ -46,13 +46,13 @@ export function resolveTimezone(segment: Segment, lookup: AirportLookup): string
  *
  * A new slice starts when:
  *  - the next segment departs from somewhere other than where the previous landed, or
- *  - the stay is longer than `thresholdHours` (default 24 h), or
+ *  - the connection is longer than `thresholdHours` (default 4 h, a stopover), or
  *  - the itinerary returns to the airport where the current slice began
  *    (same-day turnarounds), or
  *  - the user flipped the direction switch by hand.
  */
 export function planSlices(segments: Segment[], opts: SliceOptions): SlicePlan {
-  const { lookup, thresholdHours = 24 } = opts;
+  const { lookup, thresholdHours = 4 } = opts;
   const issues: Issue[] = [];
   const items: SliceItem[] = [];
 

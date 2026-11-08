@@ -50,7 +50,12 @@ exposed nowhere in the UI.
 
 ## 3. Slices (field 19)
 
-One record per direction, concatenated with no separator:
+One record per direction, concatenated with no separator. A new slice (direction) starts at a
+stopover: a connection longer than 4 hours, a change of airport, or a return to where the slice
+began. Connections of 4 hours or less stay in the same slice. With this threshold the
+JTR–LHR–SFO–DFW–CUN–JFK–LHR–CAI itinerary reproduces the 2-adult link that was confirmed to work,
+byte for byte (see `userItineraries.test.ts`).
+
 
 ```
 #FROM|TO|0|0|DEP_UTC_MS
@@ -69,11 +74,27 @@ Every physical flight, concatenated with no separator:
 ```
 
 * `CARRIER` — the **marketing** carrier (2 characters). An AA codeshare stays `AA` even when the
-  operating carrier is BA. Rows whose operating carrier and number are both known can be switched
-  to send the operating flight instead — that is the workaround for a partner codeshare that
-  aa.com's schedule does not carry.
+  operating carrier is BA. For a partner codeshare that aa.com does not carry (e.g. `IB 3564`
+  “OPERATED BY BRITISH AIRWAYS”), send the operating flight instead: `BA 178`. When the itinerary
+  footnote names that flight (`*JFK-LHR OPERATED BY BA 178`), the tool does this by default.
 * `CLASS` — a single booking letter. This is the field that makes mixed cabins possible.
 * `SLICE_INDEX` — 0-based index into field 19.
+
+### Passenger mix (field 5)
+
+Only field 5 changes with the number of travellers. Each count is written as its own letter:
+
+| Traveller | Letter | Example for 2 adults + 1 child + 1 lap infant |
+| --- | --- | --- |
+| Adult (12+) | `A` | `A2` |
+| Senior (65+) | `S` | `S0` |
+| Child (2–11) | `C` | `C1` |
+| Infant in a seat (under 2, own seat) | `I` | `I0` |
+| Youth (12–17) | `Y` | `Y0` |
+| Lap infant (under 2, no seat) | `L` | `L1` |
+
+So: `1 adult` → `A1S0C0I0Y0L0`; `2 adults` → `A2S0C0I0Y0L0`; `3 adults, 2 children, 1 lap infant`
+→ `A3S0C2I0Y0L1`. A baby travelling on a lap is `L`; use `I` only when the infant has a seat.
 
 ## 5. The timestamp rule
 
