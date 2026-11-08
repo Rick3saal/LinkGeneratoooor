@@ -11,6 +11,7 @@ interface Props {
   analysis: Analysis;
   options: BuildOptions;
   onOptionsChange: (patch: Partial<BuildOptions>) => void;
+  suggestedAlternatives?: LinkAlternativeDraft[];
   savedAlternatives: SavedLinkAlternative[];
   onSaveAlternative: (draft: LinkAlternativeDraft) => void;
   onRemoveAlternative: (id: string) => void;
@@ -78,6 +79,7 @@ export function LinkPanel({
   analysis,
   options,
   onOptionsChange,
+  suggestedAlternatives = [],
   savedAlternatives,
   onSaveAlternative,
   onRemoveAlternative,
@@ -226,6 +228,28 @@ export function LinkPanel({
             </span>
           </div>
 
+          <p className="mt-2 text-[10px] leading-snug text-faint">
+            No live schedule or availability feed is connected. Reference options below use
+            supplied flight details, not verified availability or guaranteed booking-class equivalence.
+          </p>
+          {suggestedAlternatives.length > 0 && (
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px] font-medium text-ink">Supplied reference options (unverified)</p>
+              {suggestedAlternatives.map((alternative) => (
+                <div key={alternative.url} className="rounded-md border border-line bg-panel-3 p-2">
+                  <p className="text-[11px] font-medium text-ink">{alternative.label}</p>
+                  <p className="mt-1 break-words font-mono text-[9px] text-faint">{alternative.summary}</p>
+                  <p className="mt-1 text-[9px] text-faint">AA flights unchanged · BA economy L · onward flight 29 Apr · 4 separate city pairs</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <a href={alternative.url} target="_blank" rel="noopener noreferrer"
+                      className="text-[10.5px] text-gold-300 hover:underline">Open {alternative.label} on aa.com</a>
+                    <CopyButton value={alternative.url} />
+                    <Button size="sm" onClick={() => onSaveAlternative(alternative)}>Save option</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex gap-1.5">
             <input
               aria-label="Alternative link name"
@@ -283,7 +307,7 @@ export function LinkPanel({
             </div>
           ) : (
             <p className="mt-2 text-[9.5px] leading-snug text-faint">
-              No alternatives saved yet. Search an operating-carrier flight from a row, edit its
+              No alternatives saved yet. For more options, search an operating-carrier flight from a row, edit its
               number/time/class, then save the new AA link here.
             </p>
           )}

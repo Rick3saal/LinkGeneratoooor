@@ -162,6 +162,17 @@ is static and has no live inventory API, so search results are not scraped or im
 flight number, local date/time and booking class from the result, then save that generated AA link
 in **Alternative links** before trying another option. You can keep several variants in the panel.
 
+For the exact supplied four-flight AA 7048 / AA 6996 / IB 3564 / IB 3844 itinerary
+(5, 6, 28, 28 April **2027**, classes J/I/O/O), the panel automatically offers the three
+**user-supplied reference combinations**: BA 178 + BA 398, BA 1511 + BA 396, and
+BA 112 + BA 396. Each keeps the AA legs, changes the BA legs to economy L, moves
+the CAI departure to 29 April, and builds four independent city pairs as in the supplied URLs.
+These are explicitly unverified reference examples, not discovered inventory, universal IB→BA
+codeshare mappings, or proof that O maps to L. They are not reused on other dates or flights.
+Passenger and envelope settings are applied when building each option. Open, copy, or save an
+option without modifying the primary itinerary. Further automatically discovered combinations
+require a live schedule/inventory provider; none is connected.
+
 ---
 
 ## Honest limits
